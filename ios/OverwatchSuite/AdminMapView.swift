@@ -19,6 +19,7 @@ struct AdminMapView: UIViewRepresentable {
 
     func updateUIView(_ map: MKMapView, context: Context) {
         context.coordinator.parent = self
+        context.coordinator.styles.removeAll()
         map.removeAnnotations(map.annotations)
         map.removeOverlays(map.overlays)
 
@@ -33,43 +34,51 @@ struct AdminMapView: UIViewRepresentable {
         }
 
         if let school {
-            let circle = FenceCircle(center: CLLocationCoordinate2D(latitude: school.lat, longitude: school.lng),
-                                     radius: max(school.radiusM, 100))
-            circle.stroke = UIColor(red: 0.96, green: 0.72, blue: 0.25, alpha: 1)
-            circle.fill = UIColor(red: 0.96, green: 0.72, blue: 0.25, alpha: 0.10)
-            map.addOverlay(circle)
-            points.append(circle.coordinate)
+            addCircle(map, context, center: CLLocationCoordinate2D(latitude: school.lat, longitude: school.lng),
+                      radius: max(school.radiusM, 100),
+                      stroke: UIColor(red: 0.96, green: 0.72, blue: 0.25, alpha: 1),
+                      fill: UIColor(red: 0.96, green: 0.72, blue: 0.25, alpha: 0.10),
+                      dashed: false)
+            points.append(CLLocationCoordinate2D(latitude: school.lat, longitude: school.lng))
         }
 
         if let home {
-            let circle = FenceCircle(center: CLLocationCoordinate2D(latitude: home.lat, longitude: home.lng),
-                                     radius: max(home.radiusM, 100))
-            circle.stroke = UIColor(red: 0.18, green: 0.88, blue: 0.78, alpha: 1)
-            circle.fill = UIColor(red: 0.18, green: 0.88, blue: 0.78, alpha: 0.08)
-            map.addOverlay(circle)
-            points.append(circle.coordinate)
+            addCircle(map, context, center: CLLocationCoordinate2D(latitude: home.lat, longitude: home.lng),
+                      radius: max(home.radiusM, 100),
+                      stroke: UIColor(red: 0.18, green: 0.88, blue: 0.78, alpha: 1),
+                      fill: UIColor(red: 0.18, green: 0.88, blue: 0.78, alpha: 0.08),
+                      dashed: false)
+            points.append(CLLocationCoordinate2D(latitude: home.lat, longitude: home.lng))
 
             if home.autoWorkMiles > 0 {
-                let auto = FenceCircle(center: CLLocationCoordinate2D(latitude: home.lat, longitude: home.lng),
-                                       radius: home.autoWorkMiles * 1609.344)
-                auto.stroke = UIColor(red: 0.98, green: 0.80, blue: 0.08, alpha: 1)
-                auto.fill = UIColor(red: 0.98, green: 0.80, blue: 0.08, alpha: 0.035)
-                auto.dashed = true
-                map.addOverlay(auto)
-                points.append(auto.coordinate)
+                addCircle(map, context, center: CLLocationCoordinate2D(latitude: home.lat, longitude: home.lng),
+                          radius: home.autoWorkMiles * 1609.344,
+                          stroke: UIColor(red: 0.98, green: 0.80, blue: 0.08, alpha: 1),
+                          fill: UIColor(red: 0.98, green: 0.80, blue: 0.08, alpha: 0.035),
+                          dashed: true)
+                points.append(CLLocationCoordinate2D(latitude: home.lat, longitude: home.lng))
             }
         }
 
         if !context.coordinator.didFit, !points.isEmpty {
             context.coordinator.didFit = true
-            let bounds = MKCoordinateRegion(coordinates: points)
-            map.setRegion(bounds, animated: false)
+            map.setRegion(MKCoordinateRegion(coordinates: points), animated: false)
         }
+    }
+
+    private func addCircle(_ map: MKMapView, _ context: Context,
+                           center: CLLocationCoordinate2D, radius: CLLocationDistance,
+                           stroke: UIColor, fill: UIColor, dashed: Bool) {
+        let circle = MKCircle(center: center, radius: radius)
+        context.coordinator.styles[ObjectIdentifier(circle)] =
+            FenceStyle(stroke: stroke, fill: fill, dashed: dashed)
+        map.addOverlay(circle)
     }
 
     final class Coordinator: NSObject, MKMapViewDelegate {
         var parent: AdminMapView
         var didFit = false
+        var styles: [ObjectIdentifier: FenceStyle] = [:]
 
         init(_ parent: AdminMapView) { self.parent = parent }
 
@@ -85,14 +94,15 @@ struct AdminMapView: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
-            guard let circle = overlay as? FenceCircle else {
+            guard let circle = overlay as? MKCircle else {
                 return MKOverlayRenderer(overlay: overlay)
             }
+            let style = styles[ObjectIdentifier(circle)]
             let renderer = MKCircleRenderer(circle: circle)
-            renderer.strokeColor = circle.stroke
-            renderer.fillColor = circle.fill
+            renderer.strokeColor = style?.stroke ?? .systemTeal
+            renderer.fillColor = style?.fill ?? UIColor.systemTeal.withAlphaComponent(0.08)
             renderer.lineWidth = 2
-            if circle.dashed {
+            if style?.dashed == true {
                 renderer.lineDashPattern = [8, 7]
             }
             return renderer
@@ -102,6 +112,12 @@ struct AdminMapView: UIViewRepresentable {
             parent.center = mapView.centerCoordinate
         }
     }
+}
+
+struct FenceStyle {
+    let stroke: UIColor
+    let fill: UIColor
+    let dashed: Bool
 }
 
 final class PersonAnnotation: NSObject, MKAnnotation {
@@ -114,12 +130,6 @@ final class PersonAnnotation: NSObject, MKAnnotation {
         self.title = title
         self.subtitle = subtitle
     }
-}
-
-final class FenceCircle: MKCircle {
-    var stroke = UIColor.systemTeal
-    var fill = UIColor.systemTeal.withAlphaComponent(0.08)
-    var dashed = false
 }
 
 private extension MKCoordinateRegion {
