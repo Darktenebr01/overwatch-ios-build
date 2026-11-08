@@ -64,6 +64,9 @@ final class LocationController: NSObject, CLLocationManagerDelegate {
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         onAuthorizationChanged?(manager.authorizationStatus)
+        if manager.authorizationStatus == .authorizedAlways {
+            if let homeRegion { manager.startMonitoring(for: homeRegion) }
+        }
         if wantUpdates,
            manager.authorizationStatus == .authorizedAlways
             || manager.authorizationStatus == .authorizedWhenInUse {

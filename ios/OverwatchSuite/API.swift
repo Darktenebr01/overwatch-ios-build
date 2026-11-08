@@ -122,8 +122,8 @@ struct API {
             }
             throw APIError(message: message)
         }
-        if T.self == OkResponse.self, data.isEmpty {
-            return OkResponse(ok: true) as! T
+        if data.isEmpty {
+            throw APIError(message: "Server returned an empty response")
         }
         return try JSONDecoder().decode(T.self, from: data)
     }

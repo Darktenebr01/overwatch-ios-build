@@ -171,6 +171,7 @@ final class AppStore: ObservableObject {
         }
         defaults.set(autoMiles, forKey: "autoMiles")
         defaults.set(autoHours, forKey: "autoHours")
+        if fence != nil { location.requestAlways() }
         location.monitorHome(fence)
     }
 
